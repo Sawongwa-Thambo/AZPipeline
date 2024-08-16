@@ -1,19 +1,69 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - main
 
-pool:
-  vmImage: ubuntu-latest
+pr:
+- main
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UseNode@1
+      inputs:
+        versionSpec: '14.x'
+      displayName: 'Install Node.js'
+      
+    - script: |
+        npm install
+        npm run build
+      displayName: 'Build the project'
+      
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+      displayName: 'Publish artifacts'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+- stage: Test
+  jobs:
+  - job: Test
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UseNode@1
+      inputs:
+        versionSpec: '14.x'
+      displayName: 'Install Node.js'
+      
+    - script: |
+        npm install
+        npm test
+        npm run lint
+      displayName: 'Run tests and code analysis'
+      
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFiles: '**/TEST-*.xml'
+        mergeTestResults: true
+        testRunTitle: 'Publish Test Results'
+      displayName: 'Publish test results'
+
+- stage: Deploy
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        artifactName: 'drop'
+        downloadPath: '$(System.DefaultWorkingDirectory)'
+      displayName: 'Download artifacts'
+      
+    - script: |
+        # Deployment script here (e.g., using Azure CLI)
+        az webapp deployment source config-zip --resource-group myResourceGroup --name myWebApp --src $(System.DefaultWorkingDirectory)/drop/myapp.zip
+      displayName: 'Deploy to staging environment'
